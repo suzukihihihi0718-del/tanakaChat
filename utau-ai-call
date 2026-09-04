@@ -1,7 +1,443 @@
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+
+    const url = new URL(request.url);
+
+    /* ==========================================
+       AI API
+    ========================================== */
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/chat"
+    ) {
+
+      try {
+
+        const body = await request.json();
+
+        const message =
+          String(body.message || "").trim();
+
+        const personality =
+          String(body.personality || "").trim();
+
+        const customPersonality =
+          String(body.customPersonality || "").trim();
+
+
+        if (!message) {
+
+          return Response.json(
+            {
+              error: "メッセージがありません。"
+            },
+            {
+              status: 400
+            }
+          );
+
+        }
+
+
+        /* ======================================
+           性格
+        ====================================== */
+
+        let personalityPrompt = "";
+
+
+        if (personality === "tanaka") {
+
+          personalityPrompt = `
+あなたは「田中」という親しみやすいおじいちゃんAIです。
+
+名前：田中
+種族：人間
+誕生日：1936年7月6日
+一人称：ワシ
+
+話し方：
+・おじいちゃんらしい、やさしい話し方
+・基本的に「〜じゃ」「〜じゃぞ」などを使う
+・相手を傷つける言い方をしない
+・普通の友達のように自然に会話する
+・毎回「じゃ」を付ける必要はない
+・短く自然な返事をする
+・「！」や「？」をよく使う
+・超人的な身体能力を持っている設定
+
+電話で友達と話しているように、
+自然で短い返事をしてください。
+`;
+
+        }
+
+        else if (personality === "jagajaga") {
+
+          personalityPrompt = `
+あなたは「じゃがじゃが」という
+明るく親しみやすいAIです。
+
+性格：
+・明るい
+・元気
+・楽しい
+・少しユニーク
+・親しみやすい
+・相手を傷つけない
+
+電話で友達と話しているように、
+自然で短い返事をしてください。
+`;
+
+        }
+
+        else if (personality === "custom") {
+
+          personalityPrompt = `
+あなたの性格は以下のユーザー設定です。
+
+【性格設定】
+${customPersonality}
+
+この性格をできるだけ自然に再現してください。
+
+電話で友達と話しているように、
+自然で短い返事をしてください。
+
+相手を傷つけるような返答は避けてください。
+`;
+
+        }
+
+        else {
+
+          personalityPrompt = `
+あなたは親しみやすいAIです。
+
+電話で友達と話しているように、
+自然で短い返事をしてください。
+`;
+
+        }
+
+
+        /* ======================================
+           APIキー確認
+        ====================================== */
+
+        if (!env.GEMINI_API_KEY) {
+
+          return Response.json(
+            {
+              error:
+                "GEMINI_API_KEYがCloudflareに設定されていません。"
+            },
+            {
+              status: 500
+            }
+          );
+
+        }
+
+
+        const apiKey =
+          env.GEMINI_API_KEY;
+
+
+        /* ======================================
+           モデル
+        ====================================== */
+
+        let model =
+          env.GEMINI_MODEL ||
+          "gemini-3.6-flash";
+
+
+        /*
+          まず指定モデルを試します。
+
+          もしモデルが存在しない場合は、
+          Gemini APIから利用可能な
+          generateContent対応モデルを探します。
+        */
+
+
+        async function callGemini(
+          modelName
+        ) {
+
+          const endpoint =
+            "https://generativelanguage.googleapis.com/v1beta/models/" +
+            modelName +
+            ":generateContent?key=" +
+            encodeURIComponent(apiKey);
+
+
+          const requestBody = {
+
+            systemInstruction: {
+
+              parts: [
+
+                {
+                  text:
+                    personalityPrompt
+                }
+
+              ]
+
+            },
+
+            contents: [
+
+              {
+
+                role: "user",
+
+                parts: [
+
+                  {
+                    text:
+                      message
+                  }
+
+                ]
+
+              }
+
+            ],
+
+            generationConfig: {
+
+              temperature: 0.8,
+
+              maxOutputTokens: 300
+
+            }
+
+          };
+
+
+          const response =
+            await fetch(
+              endpoint,
+              {
+
+                method: "POST",
+
+                headers: {
+
+                  "Content-Type":
+                    "application/json"
+
+                },
+
+                body:
+                  JSON.stringify(requestBody)
+
+              }
+            );
+
+
+          const data =
+            await response.json();
+
+
+          return {
+            response,
+            data
+          };
+
+        }
+
+
+        let result =
+          await callGemini(model);
+
+
+        /* ======================================
+           モデルが無い場合
+        ====================================== */
+
+        if (
+          !result.response.ok &&
+          (
+            result.response.status === 404 ||
+            result.data?.error?.status ===
+              "NOT_FOUND"
+          )
+        ) {
+
+          console.log(
+            "指定モデルが使えないため、利用可能モデルを検索します。"
+          );
+
+
+          const modelsResponse =
+            await fetch(
+              "https://generativelanguage.googleapis.com/v1beta/models?key=" +
+              encodeURIComponent(apiKey)
+            );
+
+
+          if (
+            modelsResponse.ok
+          ) {
+
+            const modelsData =
+              await modelsResponse.json();
+
+
+            const models =
+              modelsData.models || [];
+
+
+            const available =
+              models.find(
+                m =>
+                  Array.isArray(
+                    m.supportedGenerationMethods
+                  ) &&
+                  m.supportedGenerationMethods
+                    .includes(
+                      "generateContent"
+                    ) &&
+                  /flash/i.test(
+                    m.name || ""
+                  )
+              );
+
+
+            if (available) {
+
+              model =
+                available.name
+                  .replace(
+                    /^models\//,
+                    ""
+                  );
+
+
+              console.log(
+                "使用モデル:",
+                model
+              );
+
+
+              result =
+                await callGemini(
+                  model
+                );
+
+            }
+
+          }
+
+        }
+
+
+        /* ======================================
+           Geminiエラー
+        ====================================== */
+
+        if (
+          !result.response.ok
+        ) {
+
+          console.error(
+            "Gemini API error:",
+            JSON.stringify(
+              result.data
+            )
+          );
+
+
+          return Response.json(
+            {
+              error:
+                "Gemini APIでエラーが発生しました。",
+
+              detail:
+                result.data?.error?.message ||
+                "Unknown API error"
+            },
+            {
+              status:
+                result.response.status
+            }
+          );
+
+        }
+
+
+        /* ======================================
+           AIの返事
+        ====================================== */
+
+        const reply =
+          result.data
+            ?.candidates?.[0]
+            ?.content?.parts?.[0]
+            ?.text;
+
+
+        if (!reply) {
+
+          return Response.json(
+            {
+              error:
+                "AIから返事を取得できませんでした。"
+            },
+            {
+              status: 502
+            }
+          );
+
+        }
+
+
+        return Response.json({
+
+          reply: reply.trim(),
+
+          model: model
+
+        });
+
+      }
+
+      catch (error) {
+
+        console.error(error);
+
+
+        return Response.json(
+          {
+            error:
+              "サーバー側でエラーが発生しました。",
+
+            detail:
+              error?.message ||
+              String(error)
+          },
+          {
+            status: 500
+          }
+        );
+
+      }
+
+    }
+
+
+    /* ==========================================
+       HTML
+    ========================================== */
 
     return new Response(`<!DOCTYPE html>
+
 <html lang="ja">
 
 <head>
@@ -9,11 +445,13 @@ export default {
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <title>UTAU AI Call</title>
 
+
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
 
 <style>
 
@@ -22,95 +460,159 @@ export default {
 }
 
 body {
+
   margin: 0;
+
   min-height: 100vh;
+
   background: #111;
+
   color: white;
-  font-family: sans-serif;
+
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
 }
 
 #app {
+
   width: 100%;
+
   max-width: 430px;
+
   min-height: 100vh;
+
   margin: auto;
+
   background: #202124;
+
   display: flex;
+
   flex-direction: column;
+
   align-items: center;
+
   padding: 22px 18px;
+
 }
 
+
+/* ==========================================
+   ヘッダー
+========================================== */
+
 h1 {
+
   margin: 4px 0 18px;
+
   font-size: 23px;
+
 }
 
 .avatar {
+
   width: 115px;
+
   height: 115px;
+
   border-radius: 50%;
+
   background: #444;
 
   display: flex;
+
   justify-content: center;
+
   align-items: center;
 
   font-size: 62px;
 
-  margin-top: 2px;
 }
 
 .name {
+
   font-size: 21px;
+
   margin-top: 13px;
+
   font-weight: bold;
+
 }
 
 .status {
+
   margin-top: 5px;
+
   color: #aaa;
+
 }
 
 #timer {
+
   margin-top: 7px;
+
   font-size: 17px;
+
 }
 
+
+/* ==========================================
+   性格
+========================================== */
+
 .section {
+
   width: 100%;
+
   margin-top: 20px;
+
 }
 
 .sectionTitle {
+
   font-size: 15px;
+
   margin-bottom: 9px;
+
 }
 
 .personalityButton {
+
   width: 100%;
+
   min-height: 48px;
 
   margin-bottom: 8px;
 
   border: 1px solid #555;
+
   border-radius: 10px;
 
   background: #303134;
+
   color: white;
 
   font-size: 16px;
+
 }
 
 .personalityButton.selected {
+
   border: 2px solid white;
+
   background: #454545;
+
 }
 
 #customPersonality {
+
   display: none;
 
   width: 100%;
+
   min-height: 85px;
 
   margin-top: 3px;
@@ -118,22 +620,26 @@ h1 {
   padding: 10px;
 
   border-radius: 10px;
+
   border: 1px solid #666;
 
   background: #181818;
+
   color: white;
 
   font-size: 15px;
 
   resize: vertical;
+
 }
 
-#customPersonality:focus {
-  outline: none;
-  border-color: white;
-}
+
+/* ==========================================
+   UTAU
+========================================== */
 
 .upload {
+
   width: 100%;
 
   margin-top: 18px;
@@ -141,17 +647,23 @@ h1 {
   padding: 14px;
 
   border: 1px dashed #777;
+
   border-radius: 12px;
 
   text-align: center;
+
 }
 
 .upload input {
+
   width: 100%;
+
   margin-top: 10px;
+
 }
 
 #fileName {
+
   margin-top: 8px;
 
   font-size: 13px;
@@ -159,9 +671,11 @@ h1 {
   color: #aaa;
 
   word-break: break-all;
+
 }
 
 #voiceResult {
+
   margin-top: 12px;
 
   padding: 10px;
@@ -175,48 +689,122 @@ h1 {
   font-size: 13px;
 
   line-height: 1.8;
+
 }
 
-.voiceCheckTitle {
-  font-weight: bold;
-  margin-bottom: 5px;
+
+/* ==========================================
+   チャット
+========================================== */
+
+#chat {
+
+  width: 100%;
+
+  margin-top: 18px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 8px;
+
 }
 
-.voiceOK {
+.message {
+
+  max-width: 85%;
+
+  padding: 10px 12px;
+
+  border-radius: 12px;
+
+  font-size: 14px;
+
+  line-height: 1.6;
+
+  white-space: pre-wrap;
+
+  word-break: break-word;
+
+}
+
+.userMessage {
+
+  align-self: flex-end;
+
+  background: #3b4b5c;
+
+}
+
+.aiMessage {
+
+  align-self: flex-start;
+
+  background: #303134;
+
+}
+
+
+/* ==========================================
+   テスト入力
+========================================== */
+
+#chatInput {
+
+  width: 100%;
+
+  min-height: 48px;
+
+  margin-top: 12px;
+
+  padding: 10px;
+
+  border-radius: 10px;
+
+  border: 1px solid #666;
+
+  background: #181818;
+
+  color: white;
+
+  font-size: 15px;
+
+}
+
+#sendButton {
+
+  width: 100%;
+
+  height: 48px;
+
   margin-top: 8px;
 
-  padding: 8px;
+  border: none;
 
-  border-radius: 7px;
+  border-radius: 10px;
 
-  background: #263b2b;
+  background: #444;
+
+  color: white;
+
+  font-size: 16px;
+
 }
 
-.voiceWarning {
-  margin-top: 8px;
 
-  padding: 8px;
-
-  border-radius: 7px;
-
-  background: #40391f;
-}
-
-.voiceError {
-  margin-top: 8px;
-
-  padding: 8px;
-
-  border-radius: 7px;
-
-  background: #402525;
-}
+/* ==========================================
+   通話
+========================================== */
 
 #startButton {
+
   width: 220px;
+
   height: 55px;
 
   border: none;
+
   border-radius: 30px;
 
   margin-top: 20px;
@@ -224,18 +812,13 @@ h1 {
   font-size: 18px;
 
   background: #333;
+
   color: white;
-}
 
-#startButton:active {
-  transform: scale(0.97);
-}
-
-#startButton.calling {
-  background: #444;
 }
 
 .buttons {
+
   margin-top: 22px;
 
   padding-bottom: 20px;
@@ -243,32 +826,49 @@ h1 {
   display: flex;
 
   gap: 35px;
+
 }
 
 .callButton {
+
   width: 65px;
+
   height: 65px;
 
   border: none;
+
   border-radius: 50%;
 
   font-size: 27px;
+
 }
 
 #micButton {
+
   background: #444;
+
   color: white;
+
 }
 
 #endButton {
+
   background: #d93025;
+
   color: white;
+
 }
 
+
+/* ==========================================
+   説明
+========================================== */
+
 .info {
+
   width: 100%;
 
-  margin-top: 5px;
+  margin-top: 8px;
 
   padding: 10px;
 
@@ -281,10 +881,28 @@ h1 {
   font-size: 12px;
 
   line-height: 1.7;
+
 }
 
-.hidden {
-  display: none !important;
+
+/* ==========================================
+   通話中表示
+========================================== */
+
+#listening {
+
+  display: none;
+
+  margin-top: 12px;
+
+  padding: 9px 15px;
+
+  border-radius: 20px;
+
+  background: #333;
+
+  font-size: 14px;
+
 }
 
 </style>
@@ -321,14 +939,19 @@ AIキャラ
 </div>
 
 
-<!-- =========================
+<div id="listening">
+🎙️ 聞いています……
+</div>
+
+
+<!-- ======================================
      性格
-========================= -->
+====================================== -->
 
 <div class="section">
 
 <div class="sectionTitle">
-🧠 性格を選択してください
+🧠 性格を選択
 </div>
 
 
@@ -361,7 +984,7 @@ data-type="custom">
 
 <textarea
 id="customPersonality"
-placeholder="AIの性格を自由に入力してください。
+placeholder="AIの性格を入力してください。
 
 例：
 明るく元気で、少し天然。
@@ -370,15 +993,13 @@ placeholder="AIの性格を自由に入力してください。
 </div>
 
 
-<!-- =========================
+<!-- ======================================
      UTAU ZIP
-========================= -->
+====================================== -->
 
 <div class="upload">
 
 📦 UTAU音源ZIP
-
-<br>
 
 <input
 type="file"
@@ -389,62 +1010,70 @@ accept=".zip">
 まだ選択されていません
 </div>
 
-
 <div id="voiceResult"></div>
 
 </div>
 
 
-<!-- =========================
-     説明
-========================= -->
+<!-- ======================================
+     チャット
+====================================== -->
 
-<div class="info">
-
-💡 現在はUTAU音源のZIPをブラウザ内でチェックします。
-
-<br>
-
-次の段階で、この音源を実際のAI音声として使用できるようにします。
-
-</div>
+<div id="chat"></div>
 
 
-<!-- =========================
-     通話開始
-========================= -->
+<textarea
+id="chatInput"
+placeholder="文字でAIに話しかけることもできます。"></textarea>
 
-<button id="startButton">
 
-📞 通話開始
-
+<button id="sendButton">
+💬 送信
 </button>
 
 
-<!-- =========================
-     通話操作
-========================= -->
+<!-- ======================================
+     通話
+====================================== -->
+
+<button id="startButton">
+📞 通話開始
+</button>
+
 
 <div class="buttons">
-
 
 <button
 class="callButton"
 id="micButton">
-
 🎙️
-
 </button>
 
 
 <button
 class="callButton"
 id="endButton">
-
 🔴
-
 </button>
 
+</div>
+
+
+<div class="info">
+
+通話中はマイクで話してください。
+
+<br>
+
+AIが聞き取って返事を読み上げます。
+
+<br>
+
+現在の音声はスマホの音声合成です。
+
+<br>
+
+UTAU音源での発声は次の段階で追加します。
 
 </div>
 
@@ -455,9 +1084,9 @@ id="endButton">
 <script>
 
 
-/* =========================
-   基本変数
-========================= */
+/* ==========================================
+   変数
+========================================== */
 
 let stream = null;
 
@@ -467,14 +1096,18 @@ let seconds = 0;
 
 let selectedPersonality = null;
 
-let utauZip = null;
+let recognition = null;
 
-let utauInfo = null;
+let callActive = false;
+
+let isSpeaking = false;
+
+let recognitionSupported = false;
 
 
-/* =========================
+/* ==========================================
    DOM
-========================= */
+========================================== */
 
 const statusText =
 document.getElementById("status");
@@ -500,725 +1133,408 @@ document.getElementById("characterName");
 const avatar =
 document.getElementById("avatar");
 
+const chat =
+document.getElementById("chat");
+
+const chatInput =
+document.getElementById("chatInput");
+
+const sendButton =
+document.getElementById("sendButton");
+
 const startButton =
 document.getElementById("startButton");
 
 const micButton =
 document.getElementById("micButton");
 
+const listening =
+document.getElementById("listening");
 
-/* =========================
-   性格選択
-========================= */
+
+/* ==========================================
+   音声認識
+========================================== */
+
+const SpeechRecognition =
+window.SpeechRecognition ||
+window.webkitSpeechRecognition;
+
+
+if (SpeechRecognition) {
+
+  recognitionSupported = true;
+
+  recognition =
+    new SpeechRecognition();
+
+  recognition.lang =
+    "ja-JP";
+
+  recognition.continuous =
+    false;
+
+  recognition.interimResults =
+    false;
+
+  recognition.maxAlternatives =
+    1;
+
+
+  recognition.onstart =
+    () => {
+
+      if (!callActive) {
+        return;
+      }
+
+      listening.style.display =
+        "block";
+
+      statusText.textContent =
+        "聞いています……";
+
+    };
+
+
+  recognition.onresult =
+    async event => {
+
+      const result =
+        event.results[0][0];
+
+      const text =
+        result.transcript.trim();
+
+
+      if (!text) {
+        startListening();
+        return;
+      }
+
+
+      addMessage(
+        text,
+        "userMessage"
+      );
+
+
+      listening.style.display =
+        "none";
+
+
+      statusText.textContent =
+        "AIが考えています……";
+
+
+      await sendToAI(text);
+
+    };
+
+
+  recognition.onerror =
+    event => {
+
+      console.log(
+        "SpeechRecognition:",
+        event.error
+      );
+
+
+      listening.style.display =
+        "none";
+
+
+      if (
+        !callActive
+      ) {
+        return;
+      }
+
+
+      if (
+        event.error ===
+        "not-allowed"
+      ) {
+
+        statusText.textContent =
+          "マイクの許可が必要です。";
+
+        return;
+
+      }
+
+
+      setTimeout(
+        () => {
+
+          if (callActive) {
+            startListening();
+          }
+
+        },
+        800
+      );
+
+    };
+
+
+  recognition.onend =
+    () => {
+
+      listening.style.display =
+        "none";
+
+    };
+
+}
+
+
+/* ==========================================
+   性格ボタン
+========================================== */
 
 document
 .querySelectorAll(".personalityButton")
 .forEach(button => {
 
-  button.addEventListener("click", () => {
+  button.addEventListener(
+    "click",
+    () => {
+
+      document
+      .querySelectorAll(".personalityButton")
+      .forEach(b => {
+
+        b.classList.remove(
+          "selected"
+        );
+
+      });
 
 
-    document
-    .querySelectorAll(".personalityButton")
-    .forEach(b => {
-
-      b.classList.remove("selected");
-
-    });
+      button.classList.add(
+        "selected"
+      );
 
 
-    button.classList.add("selected");
+      selectedPersonality =
+        button.dataset.type;
 
 
-    selectedPersonality =
-    button.dataset.type;
+      if (
+        selectedPersonality ===
+        "custom"
+      ) {
+
+        customPersonality.style.display =
+          "block";
+
+        characterName.textContent =
+          "オリジナルAI";
+
+        avatar.textContent =
+          "🎤";
+
+      }
+
+      else {
+
+        customPersonality.style.display =
+          "none";
+
+      }
 
 
-    if (
-      selectedPersonality === "custom"
-    ) {
+      if (
+        selectedPersonality ===
+        "tanaka"
+      ) {
 
-      customPersonality.style.display =
-      "block";
+        characterName.textContent =
+          "田中";
 
-    } else {
+        avatar.textContent =
+          "👴";
 
-      customPersonality.style.display =
-      "none";
+      }
+
+
+      if (
+        selectedPersonality ===
+        "jagajaga"
+      ) {
+
+        characterName.textContent =
+          "じゃがじゃが";
+
+        avatar.textContent =
+          "🥔";
+
+      }
 
     }
-
-
-    /* キャラクター表示 */
-
-    if (
-      selectedPersonality === "tanaka"
-    ) {
-
-      characterName.textContent =
-      "田中";
-
-      avatar.textContent =
-      "👴";
-
-    }
-
-
-    else if (
-      selectedPersonality === "jagajaga"
-    ) {
-
-      characterName.textContent =
-      "じゃがじゃが";
-
-      avatar.textContent =
-      "🥔";
-
-    }
-
-
-    else {
-
-      characterName.textContent =
-      "オリジナルAI";
-
-      avatar.textContent =
-      "🎤";
-
-    }
-
-  });
+  );
 
 });
 
 
-/* =========================
-   UTAU ZIP
-========================= */
+/* ==========================================
+   ZIP確認
+========================================== */
 
 voiceFile.addEventListener(
-"change",
-async () => {
+  "change",
+  async () => {
+
+    voiceResult.innerHTML =
+      "🔍 UTAU音源を確認しています……";
 
 
-  voiceResult.innerHTML =
-  "🔍 UTAU音源を確認しています……";
+    if (
+      !voiceFile.files.length
+    ) {
+
+      fileName.textContent =
+        "まだ選択されていません";
+
+      voiceResult.innerHTML =
+        "";
+
+      return;
+
+    }
 
 
-  utauZip = null;
+    const file =
+      voiceFile.files[0];
 
-  utauInfo = null;
-
-
-  if (
-    !voiceFile.files.length
-  ) {
 
     fileName.textContent =
-    "まだ選択されていません";
+      "選択中: " + file.name;
 
-    voiceResult.innerHTML =
-    "";
 
-    return;
+    try {
 
-  }
+      const zip =
+        await JSZip.loadAsync(file);
 
 
-  const file =
-  voiceFile.files[0];
+      const files =
+        Object.keys(zip.files);
 
 
-  fileName.textContent =
-  "選択中: " + file.name;
+      let wavCount = 0;
 
+      let frqCount = 0;
 
-  /* ZIP確認 */
+      let otoCount = 0;
 
-  if (
-    !file.name
-    .toLowerCase()
-    .endsWith(".zip")
-  ) {
+      let txtCount = 0;
 
-    voiceResult.innerHTML =
-    "<div class='voiceError'>❌ ZIPファイルを選択してください。</div>";
+      let iniCount = 0;
 
-    return;
 
-  }
+      let otoPath = "";
 
 
-  try {
+      files.forEach(
+        path => {
 
+          const lower =
+            path.toLowerCase();
 
-    const zip =
-    await JSZip.loadAsync(file);
 
+          if (
+            lower.endsWith(".wav")
+          ) {
+            wavCount++;
+          }
 
-    utauZip = zip;
 
+          if (
+            lower.endsWith(".frq")
+          ) {
+            frqCount++;
+          }
 
-    const files =
-    Object.keys(zip.files);
 
+          if (
+            lower.endsWith("oto.ini")
+          ) {
 
-    let wavCount = 0;
+            otoCount++;
 
-    let frqCount = 0;
+            otoPath = path;
 
-    let otoCount = 0;
+          }
 
-    let txtCount = 0;
 
-    let iniCount = 0;
+          if (
+            lower.endsWith(".txt")
+          ) {
+            txtCount++;
+          }
 
 
-    let otoFiles = [];
+          if (
+            lower.endsWith(".ini")
+          ) {
+            iniCount++;
+          }
 
-
-    files.forEach(path => {
-
-
-      const lower =
-      path.toLowerCase();
-
-
-      if (
-        lower.endsWith(".wav")
-      ) {
-
-        wavCount++;
-
-      }
-
-
-      if (
-        lower.endsWith(".frq")
-      ) {
-
-        frqCount++;
-
-      }
-
-
-      if (
-        lower.endsWith("oto.ini")
-      ) {
-
-        otoCount++;
-
-        otoFiles.push(path);
-
-      }
-
-
-      if (
-        lower.endsWith(".txt")
-      ) {
-
-        txtCount++;
-
-      }
-
-
-      if (
-        lower.endsWith(".ini")
-      ) {
-
-        iniCount++;
-
-      }
-
-    });
-
-
-    /* 音源名候補 */
-
-    let voiceName =
-    file.name.replace(
-      /\.zip$/i,
-      ""
-    );
-
-
-    if (
-      otoFiles.length > 0
-    ) {
-
-      const firstOto =
-      otoFiles[0];
-
-      const parts =
-      firstOto.split("/");
-
-      if (
-        parts.length >= 2
-      ) {
-
-        voiceName =
-        parts[parts.length - 2];
-
-      }
-
-    }
-
-
-    utauInfo = {
-
-      fileName: file.name,
-
-      voiceName: voiceName,
-
-      fileCount: files.length,
-
-      wavCount: wavCount,
-
-      frqCount: frqCount,
-
-      otoCount: otoCount,
-
-      txtCount: txtCount,
-
-      iniCount: iniCount
-
-    };
-
-
-    /* 結果表示 */
-
-    let html = "";
-
-
-    html +=
-    "<div class='voiceCheckTitle'>📦 音源チェック結果</div>";
-
-
-    html +=
-    "<div>🎤 音源名候補：" +
-    escapeHTML(voiceName) +
-    "</div>";
-
-
-    html +=
-    "<div>📁 ファイル数：" +
-    files.length +
-    "</div>";
-
-
-    html +=
-    "<div>🎵 WAV：" +
-    wavCount +
-    "個</div>";
-
-
-    html +=
-    "<div>📊 FRQ：" +
-    frqCount +
-    "個</div>";
-
-
-    html +=
-    "<div>⚙️ oto.ini：" +
-    otoCount +
-    "個</div>";
-
-
-    html +=
-    "<div>📝 TXT：" +
-    txtCount +
-    "個</div>";
-
-
-    html +=
-    "<div>⚙️ INI：" +
-    iniCount +
-    "個</div>";
-
-
-    if (
-      wavCount > 0 &&
-      otoCount > 0
-    ) {
-
-
-      html +=
-      "<div class='voiceOK'>✅ UTAU音源らしい構成を確認しました！</div>";
-
-
-    }
-
-    else if (
-      wavCount > 0
-    ) {
-
-
-      html +=
-      "<div class='voiceWarning'>⚠️ WAVは見つかりましたが、oto.iniが見つかりません。</div>";
-
-
-    }
-
-    else {
-
-
-      html +=
-      "<div class='voiceError'>❌ UTAU音源として必要なファイルを確認できませんでした。</div>";
-
-    }
-
-
-    voiceResult.innerHTML =
-    html;
-
-
-  }
-
-  catch(error) {
-
-
-    console.error(error);
-
-
-    utauZip = null;
-
-    utauInfo = null;
-
-
-    voiceResult.innerHTML =
-    "<div class='voiceError'>❌ ZIPを読み込めませんでした。</div>";
-
-  }
-
-});
-
-
-/* =========================
-   HTML安全化
-========================= */
-
-function escapeHTML(text) {
-
-  return String(text)
-
-    .replace(/&/g, "&amp;")
-
-    .replace(/</g, "&lt;")
-
-    .replace(/>/g, "&gt;")
-
-    .replace(/"/g, "&quot;")
-
-    .replace(/'/g, "&#039;");
-
-}
-
-
-/* =========================
-   性格チェック
-========================= */
-
-function checkPersonality() {
-
-
-  if (
-    !selectedPersonality
-  ) {
-
-    alert(
-      "まず性格を選択してください！"
-    );
-
-    return false;
-
-  }
-
-
-  if (
-    selectedPersonality === "custom"
-  ) {
-
-
-    const text =
-    customPersonality.value.trim();
-
-
-    if (!text) {
-
-      alert(
-        "自分で決める性格を入力してください！"
-      );
-
-      return false;
-
-    }
-
-  }
-
-
-  return true;
-
-}
-
-
-/* =========================
-   通話開始
-========================= */
-
-startButton.addEventListener(
-"click",
-async () => {
-
-
-  if (
-    stream
-  ) {
-
-    return;
-
-  }
-
-
-  if (
-    !checkPersonality()
-  ) {
-
-    return;
-
-  }
-
-
-  try {
-
-
-    stream =
-    await navigator
-    .mediaDevices
-    .getUserMedia({
-
-      audio: true
-
-    });
-
-
-    statusText.textContent =
-    "通話中";
-
-
-    startButton.textContent =
-    "📞 通話中";
-
-
-    startButton.classList.add(
-      "calling"
-    );
-
-
-    seconds = 0;
-
-
-    timer.textContent =
-    "00:00";
-
-
-    timerInterval =
-    setInterval(() => {
-
-
-      seconds++;
-
-
-      const min =
-      String(
-        Math.floor(
-          seconds / 60
-        )
-      ).padStart(
-        2,
-        "0"
+        }
       );
 
 
-      const sec =
-      String(
-        seconds % 60
-      ).padStart(
-        2,
-        "0"
-      );
+      let voiceName =
+        file.name.replace(
+          /\.zip$/i,
+          ""
+        );
 
 
-      timer.textContent =
-      min + ":" + sec;
+      if (otoPath) {
 
+        const parts =
+          otoPath.split("/");
 
-    }, 1000);
 
+        if (
+          parts.length >= 2
+        ) {
 
-    /*
-      現在は疑似通話です。
+          voiceName =
+            parts[
+              parts.length - 2
+            ];
 
-      次の段階で、
-      音声認識 → AI → 音声合成
-      をここへ接続します。
-    */
-
-
-  }
-
-  catch(error) {
-
-
-    console.error(error);
-
-
-    statusText.textContent =
-    "マイクを使用できません";
-
-
-    alert(
-      "マイクの使用を許可してください。"
-    );
-
-
-  }
-
-});
-
-
-/* =========================
-   ミュート
-========================= */
-
-micButton.addEventListener(
-"click",
-() => {
-
-
-  if (
-    !stream
-  ) {
-
-    return;
-
-  }
-
-
-  const tracks =
-  stream.getAudioTracks();
-
-
-  tracks.forEach(track => {
-
-
-    track.enabled =
-    !track.enabled;
-
-
-  });
-
-
-  if (
-    tracks[0].enabled
-  ) {
-
-
-    micButton.textContent =
-    "🎙️";
-
-
-  }
-
-  else {
-
-
-    micButton.textContent =
-    "🔇";
-
-
-  }
-
-});
-
-
-/* =========================
-   通話終了
-========================= */
-
-document
-.getElementById("endButton")
-.addEventListener(
-"click",
-() => {
-
-
-  if (
-    stream
-  ) {
-
-
-    stream
-    .getTracks()
-    .forEach(track => {
-
-      track.stop();
-
-    });
-
-
-    stream = null;
-
-  }
-
-
-  clearInterval(
-    timerInterval
-  );
-
-
-  timerInterval =
-  null;
-
-
-  statusText.textContent =
-  "通話終了";
-
-
-  timer.textContent =
-  "00:00";
-
-
-  startButton.textContent =
-  "📞 通話開始";
-
-
-  startButton.classList.remove(
-    "calling"
-  );
-
-
-  micButton.textContent =
-  "🎙️";
-
-
-});
-
-
-</script>
-
-</body>
-
-</html>`, {
-
-      headers: {
-
-        "content-type":
-        "text/html; charset=UTF-8"
+        }
 
       }
 
-    });
 
-  }
+      let html = "";
 
-};
+
+      html +=
+        "<b>📦 音源チェック結果</b><br>";
+
+      html +=
+        "🎤 音源名候補：" +
+        escapeHTML(voiceName) +
+        "<br>";
+
+      html +=
+        "📁 ファイル数：" +
+        files.length +
+        "<br>";
+
+      html +=
+        "🎵 WAV：" +
+        wavCount +
+        "個<br>";
+
+      html +=
+        "📊 FRQ：" +
+     
