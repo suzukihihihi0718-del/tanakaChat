@@ -1,13 +1,19 @@
 export default {
   async fetch(request) {
+
     return new Response(`<!DOCTYPE html>
 <html lang="ja">
+
 <head>
+
 <meta charset="UTF-8">
+
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <title>UTAU AI Call</title>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <style>
 
@@ -32,69 +38,67 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 25px 20px;
+  padding: 22px 18px;
 }
 
 h1 {
-  margin: 5px 0 20px;
-  font-size: 24px;
+  margin: 4px 0 18px;
+  font-size: 23px;
 }
 
-/* キャラクター画像 */
-
 .avatar {
-  width: 120px;
-  height: 120px;
+  width: 115px;
+  height: 115px;
   border-radius: 50%;
   background: #444;
+
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 65px;
-  margin-top: 5px;
-}
 
-/* キャラクター名 */
+  font-size: 62px;
+
+  margin-top: 2px;
+}
 
 .name {
-  font-size: 22px;
-  margin-top: 15px;
+  font-size: 21px;
+  margin-top: 13px;
+  font-weight: bold;
 }
 
-/* 通話状態 */
-
 .status {
-  margin-top: 6px;
+  margin-top: 5px;
   color: #aaa;
 }
 
-/* タイマー */
-
 #timer {
-  margin-top: 8px;
-  font-size: 18px;
+  margin-top: 7px;
+  font-size: 17px;
 }
 
-/* 性格選択 */
-
-.personalityBox {
+.section {
   width: 100%;
-  margin-top: 25px;
+  margin-top: 20px;
 }
 
-.personalityTitle {
-  font-size: 16px;
-  margin-bottom: 10px;
+.sectionTitle {
+  font-size: 15px;
+  margin-bottom: 9px;
 }
 
 .personalityButton {
   width: 100%;
-  height: 48px;
+  min-height: 48px;
+
   margin-bottom: 8px;
+
   border: 1px solid #555;
   border-radius: 10px;
+
   background: #303134;
   color: white;
+
   font-size: 16px;
 }
 
@@ -103,30 +107,42 @@ h1 {
   background: #454545;
 }
 
-/* 自由入力 */
-
 #customPersonality {
   display: none;
+
   width: 100%;
-  min-height: 80px;
-  margin-top: 5px;
+  min-height: 85px;
+
+  margin-top: 3px;
+
   padding: 10px;
+
   border-radius: 10px;
   border: 1px solid #666;
+
   background: #181818;
   color: white;
+
   font-size: 15px;
+
   resize: vertical;
 }
 
-/* ZIP */
+#customPersonality:focus {
+  outline: none;
+  border-color: white;
+}
 
 .upload {
   width: 100%;
-  margin-top: 20px;
-  padding: 15px;
+
+  margin-top: 18px;
+
+  padding: 14px;
+
   border: 1px dashed #777;
   border-radius: 12px;
+
   text-align: center;
 }
 
@@ -137,20 +153,76 @@ h1 {
 
 #fileName {
   margin-top: 8px;
+
   font-size: 13px;
+
   color: #aaa;
+
   word-break: break-all;
 }
 
-/* 通話開始 */
+#voiceResult {
+  margin-top: 12px;
+
+  padding: 10px;
+
+  border-radius: 9px;
+
+  background: #181818;
+
+  text-align: left;
+
+  font-size: 13px;
+
+  line-height: 1.8;
+}
+
+.voiceCheckTitle {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.voiceOK {
+  margin-top: 8px;
+
+  padding: 8px;
+
+  border-radius: 7px;
+
+  background: #263b2b;
+}
+
+.voiceWarning {
+  margin-top: 8px;
+
+  padding: 8px;
+
+  border-radius: 7px;
+
+  background: #40391f;
+}
+
+.voiceError {
+  margin-top: 8px;
+
+  padding: 8px;
+
+  border-radius: 7px;
+
+  background: #402525;
+}
 
 #startButton {
   width: 220px;
   height: 55px;
+
   border: none;
   border-radius: 30px;
+
   margin-top: 20px;
+
   font-size: 18px;
+
   background: #333;
   color: white;
 }
@@ -159,20 +231,27 @@ h1 {
   transform: scale(0.97);
 }
 
-/* 通話ボタン */
+#startButton.calling {
+  background: #444;
+}
 
 .buttons {
-  margin-top: 25px;
+  margin-top: 22px;
+
   padding-bottom: 20px;
+
   display: flex;
+
   gap: 35px;
 }
 
 .callButton {
   width: 65px;
   height: 65px;
+
   border: none;
   border-radius: 50%;
+
   font-size: 27px;
 }
 
@@ -186,142 +265,246 @@ h1 {
   color: white;
 }
 
+.info {
+  width: 100%;
+
+  margin-top: 5px;
+
+  padding: 10px;
+
+  border-radius: 9px;
+
+  background: #292a2d;
+
+  color: #aaa;
+
+  font-size: 12px;
+
+  line-height: 1.7;
+}
+
+.hidden {
+  display: none !important;
+}
+
 </style>
+
 </head>
+
 
 <body>
 
+
 <div id="app">
 
-  <h1>📞 UTAU AI Call</h1>
 
-  <div class="avatar" id="avatar">
-    🎤
-  </div>
-
-  <div class="name" id="characterName">
-    AIキャラ
-  </div>
-
-  <div class="status" id="status">
-    通話準備中
-  </div>
-
-  <div id="timer">
-    00:00
-  </div>
+<h1>📞 UTAU AI Call</h1>
 
 
-  <!-- 性格選択 -->
-
-  <div class="personalityBox">
-
-    <div class="personalityTitle">
-      🧠 性格を選択してください
-    </div>
-
-    <button
-      class="personalityButton"
-      data-type="tanaka">
-      👴 田中
-    </button>
-
-    <button
-      class="personalityButton"
-      data-type="jagajaga">
-      🥔 じゃがじゃが
-    </button>
-
-    <button
-      class="personalityButton"
-      data-type="custom">
-      ✏️ 自分で決める
-    </button>
-
-    <textarea
-      id="customPersonality"
-      placeholder="このAIの性格を自由に書いてください。
-例：明るく元気で、少し天然な性格。"></textarea>
-
-  </div>
+<div class="avatar" id="avatar">
+🎤
+</div>
 
 
-  <!-- UTAU音源 -->
-
-  <div class="upload">
-
-    📦 UTAU音源ZIP
-
-    <br>
-
-    <input
-      type="file"
-      id="voiceFile"
-      accept=".zip">
-
-    <div id="fileName">
-      まだ選択されていません
-    </div>
-
-  </div>
+<div class="name" id="characterName">
+AIキャラ
+</div>
 
 
-  <!-- 通話開始 -->
-
-  <button id="startButton">
-    📞 通話開始
-  </button>
+<div class="status" id="status">
+通話準備中
+</div>
 
 
-  <!-- 通話操作 -->
+<div id="timer">
+00:00
+</div>
 
-  <div class="buttons">
 
-    <button
-      class="callButton"
-      id="micButton">
-      🎙️
-    </button>
+<!-- =========================
+     性格
+========================= -->
 
-    <button
-      class="callButton"
-      id="endButton">
-      🔴
-    </button>
+<div class="section">
 
-  </div>
+<div class="sectionTitle">
+🧠 性格を選択してください
+</div>
+
+
+<button
+class="personalityButton"
+data-type="tanaka">
+
+👴 田中
+
+</button>
+
+
+<button
+class="personalityButton"
+data-type="jagajaga">
+
+🥔 じゃがじゃが
+
+</button>
+
+
+<button
+class="personalityButton"
+data-type="custom">
+
+✏️ 自分で決める
+
+</button>
+
+
+<textarea
+id="customPersonality"
+placeholder="AIの性格を自由に入力してください。
+
+例：
+明るく元気で、少し天然。
+友達のように話してくれる。"></textarea>
+
+</div>
+
+
+<!-- =========================
+     UTAU ZIP
+========================= -->
+
+<div class="upload">
+
+📦 UTAU音源ZIP
+
+<br>
+
+<input
+type="file"
+id="voiceFile"
+accept=".zip">
+
+<div id="fileName">
+まだ選択されていません
+</div>
+
+
+<div id="voiceResult"></div>
+
+</div>
+
+
+<!-- =========================
+     説明
+========================= -->
+
+<div class="info">
+
+💡 現在はUTAU音源のZIPをブラウザ内でチェックします。
+
+<br>
+
+次の段階で、この音源を実際のAI音声として使用できるようにします。
+
+</div>
+
+
+<!-- =========================
+     通話開始
+========================= -->
+
+<button id="startButton">
+
+📞 通話開始
+
+</button>
+
+
+<!-- =========================
+     通話操作
+========================= -->
+
+<div class="buttons">
+
+
+<button
+class="callButton"
+id="micButton">
+
+🎙️
+
+</button>
+
+
+<button
+class="callButton"
+id="endButton">
+
+🔴
+
+</button>
+
+
+</div>
+
 
 </div>
 
 
 <script>
 
+
+/* =========================
+   基本変数
+========================= */
+
 let stream = null;
+
 let timerInterval = null;
+
 let seconds = 0;
 
 let selectedPersonality = null;
 
+let utauZip = null;
+
+let utauInfo = null;
+
+
+/* =========================
+   DOM
+========================= */
+
 const statusText =
-  document.getElementById("status");
+document.getElementById("status");
 
 const timer =
-  document.getElementById("timer");
+document.getElementById("timer");
 
 const voiceFile =
-  document.getElementById("voiceFile");
+document.getElementById("voiceFile");
 
 const fileName =
-  document.getElementById("fileName");
+document.getElementById("fileName");
+
+const voiceResult =
+document.getElementById("voiceResult");
 
 const customPersonality =
-  document.getElementById("customPersonality");
+document.getElementById("customPersonality");
 
 const characterName =
-  document.getElementById("characterName");
+document.getElementById("characterName");
 
 const avatar =
-  document.getElementById("avatar");
+document.getElementById("avatar");
+
+const startButton =
+document.getElementById("startButton");
+
+const micButton =
+document.getElementById("micButton");
 
 
 /* =========================
@@ -329,243 +512,633 @@ const avatar =
 ========================= */
 
 document
-  .querySelectorAll(".personalityButton")
-  .forEach(button => {
+.querySelectorAll(".personalityButton")
+.forEach(button => {
 
-    button.addEventListener("click", () => {
-
-      document
-        .querySelectorAll(".personalityButton")
-        .forEach(b => {
-          b.classList.remove("selected");
-        });
-
-      button.classList.add("selected");
-
-      selectedPersonality =
-        button.dataset.type;
-
-      if (selectedPersonality === "custom") {
-
-        customPersonality.style.display =
-          "block";
-
-      } else {
-
-        customPersonality.style.display =
-          "none";
-
-      }
+  button.addEventListener("click", () => {
 
 
-      /* キャラクター表示 */
+    document
+    .querySelectorAll(".personalityButton")
+    .forEach(b => {
 
-      if (selectedPersonality === "tanaka") {
+      b.classList.remove("selected");
 
-        characterName.textContent =
-          "田中";
+    });
 
-        avatar.textContent =
-          "👴";
 
-      }
+    button.classList.add("selected");
 
-      else if (
-        selectedPersonality === "jagajaga"
+
+    selectedPersonality =
+    button.dataset.type;
+
+
+    if (
+      selectedPersonality === "custom"
+    ) {
+
+      customPersonality.style.display =
+      "block";
+
+    } else {
+
+      customPersonality.style.display =
+      "none";
+
+    }
+
+
+    /* キャラクター表示 */
+
+    if (
+      selectedPersonality === "tanaka"
+    ) {
+
+      characterName.textContent =
+      "田中";
+
+      avatar.textContent =
+      "👴";
+
+    }
+
+
+    else if (
+      selectedPersonality === "jagajaga"
+    ) {
+
+      characterName.textContent =
+      "じゃがじゃが";
+
+      avatar.textContent =
+      "🥔";
+
+    }
+
+
+    else {
+
+      characterName.textContent =
+      "オリジナルAI";
+
+      avatar.textContent =
+      "🎤";
+
+    }
+
+  });
+
+});
+
+
+/* =========================
+   UTAU ZIP
+========================= */
+
+voiceFile.addEventListener(
+"change",
+async () => {
+
+
+  voiceResult.innerHTML =
+  "🔍 UTAU音源を確認しています……";
+
+
+  utauZip = null;
+
+  utauInfo = null;
+
+
+  if (
+    !voiceFile.files.length
+  ) {
+
+    fileName.textContent =
+    "まだ選択されていません";
+
+    voiceResult.innerHTML =
+    "";
+
+    return;
+
+  }
+
+
+  const file =
+  voiceFile.files[0];
+
+
+  fileName.textContent =
+  "選択中: " + file.name;
+
+
+  /* ZIP確認 */
+
+  if (
+    !file.name
+    .toLowerCase()
+    .endsWith(".zip")
+  ) {
+
+    voiceResult.innerHTML =
+    "<div class='voiceError'>❌ ZIPファイルを選択してください。</div>";
+
+    return;
+
+  }
+
+
+  try {
+
+
+    const zip =
+    await JSZip.loadAsync(file);
+
+
+    utauZip = zip;
+
+
+    const files =
+    Object.keys(zip.files);
+
+
+    let wavCount = 0;
+
+    let frqCount = 0;
+
+    let otoCount = 0;
+
+    let txtCount = 0;
+
+    let iniCount = 0;
+
+
+    let otoFiles = [];
+
+
+    files.forEach(path => {
+
+
+      const lower =
+      path.toLowerCase();
+
+
+      if (
+        lower.endsWith(".wav")
       ) {
 
-        characterName.textContent =
-          "じゃがじゃが";
-
-        avatar.textContent =
-          "🥔";
+        wavCount++;
 
       }
 
-      else {
 
-        characterName.textContent =
-          "オリジナルAI";
+      if (
+        lower.endsWith(".frq")
+      ) {
 
-        avatar.textContent =
-          "🎤";
+        frqCount++;
+
+      }
+
+
+      if (
+        lower.endsWith("oto.ini")
+      ) {
+
+        otoCount++;
+
+        otoFiles.push(path);
+
+      }
+
+
+      if (
+        lower.endsWith(".txt")
+      ) {
+
+        txtCount++;
+
+      }
+
+
+      if (
+        lower.endsWith(".ini")
+      ) {
+
+        iniCount++;
 
       }
 
     });
 
-  });
+
+    /* 音源名候補 */
+
+    let voiceName =
+    file.name.replace(
+      /\.zip$/i,
+      ""
+    );
+
+
+    if (
+      otoFiles.length > 0
+    ) {
+
+      const firstOto =
+      otoFiles[0];
+
+      const parts =
+      firstOto.split("/");
+
+      if (
+        parts.length >= 2
+      ) {
+
+        voiceName =
+        parts[parts.length - 2];
+
+      }
+
+    }
+
+
+    utauInfo = {
+
+      fileName: file.name,
+
+      voiceName: voiceName,
+
+      fileCount: files.length,
+
+      wavCount: wavCount,
+
+      frqCount: frqCount,
+
+      otoCount: otoCount,
+
+      txtCount: txtCount,
+
+      iniCount: iniCount
+
+    };
+
+
+    /* 結果表示 */
+
+    let html = "";
+
+
+    html +=
+    "<div class='voiceCheckTitle'>📦 音源チェック結果</div>";
+
+
+    html +=
+    "<div>🎤 音源名候補：" +
+    escapeHTML(voiceName) +
+    "</div>";
+
+
+    html +=
+    "<div>📁 ファイル数：" +
+    files.length +
+    "</div>";
+
+
+    html +=
+    "<div>🎵 WAV：" +
+    wavCount +
+    "個</div>";
+
+
+    html +=
+    "<div>📊 FRQ：" +
+    frqCount +
+    "個</div>";
+
+
+    html +=
+    "<div>⚙️ oto.ini：" +
+    otoCount +
+    "個</div>";
+
+
+    html +=
+    "<div>📝 TXT：" +
+    txtCount +
+    "個</div>";
+
+
+    html +=
+    "<div>⚙️ INI：" +
+    iniCount +
+    "個</div>";
+
+
+    if (
+      wavCount > 0 &&
+      otoCount > 0
+    ) {
+
+
+      html +=
+      "<div class='voiceOK'>✅ UTAU音源らしい構成を確認しました！</div>";
+
+
+    }
+
+    else if (
+      wavCount > 0
+    ) {
+
+
+      html +=
+      "<div class='voiceWarning'>⚠️ WAVは見つかりましたが、oto.iniが見つかりません。</div>";
+
+
+    }
+
+    else {
+
+
+      html +=
+      "<div class='voiceError'>❌ UTAU音源として必要なファイルを確認できませんでした。</div>";
+
+    }
+
+
+    voiceResult.innerHTML =
+    html;
+
+
+  }
+
+  catch(error) {
+
+
+    console.error(error);
+
+
+    utauZip = null;
+
+    utauInfo = null;
+
+
+    voiceResult.innerHTML =
+    "<div class='voiceError'>❌ ZIPを読み込めませんでした。</div>";
+
+  }
+
+});
 
 
 /* =========================
-   UTAU ZIP選択
+   HTML安全化
 ========================= */
 
-voiceFile.addEventListener(
-  "change",
-  () => {
+function escapeHTML(text) {
 
-    if (voiceFile.files.length > 0) {
+  return String(text)
 
-      const file =
-        voiceFile.files[0];
+    .replace(/&/g, "&amp;")
 
-      fileName.textContent =
-        "選択中: " + file.name;
+    .replace(/</g, "&lt;")
+
+    .replace(/>/g, "&gt;")
+
+    .replace(/"/g, "&quot;")
+
+    .replace(/'/g, "&#039;");
+
+}
+
+
+/* =========================
+   性格チェック
+========================= */
+
+function checkPersonality() {
+
+
+  if (
+    !selectedPersonality
+  ) {
+
+    alert(
+      "まず性格を選択してください！"
+    );
+
+    return false;
+
+  }
+
+
+  if (
+    selectedPersonality === "custom"
+  ) {
+
+
+    const text =
+    customPersonality.value.trim();
+
+
+    if (!text) {
+
+      alert(
+        "自分で決める性格を入力してください！"
+      );
+
+      return false;
 
     }
 
   }
-);
+
+
+  return true;
+
+}
 
 
 /* =========================
    通話開始
 ========================= */
 
-document
-  .getElementById("startButton")
-  .addEventListener(
-    "click",
-    async () => {
-
-      /* 性格チェック */
-
-      if (!selectedPersonality) {
-
-        alert(
-          "まず性格を選択してください！"
-        );
-
-        return;
-      }
+startButton.addEventListener(
+"click",
+async () => {
 
 
-      /* 自由入力チェック */
+  if (
+    stream
+  ) {
 
-      if (
-        selectedPersonality === "custom"
-      ) {
+    return;
 
-        const text =
-          customPersonality.value.trim();
-
-        if (!text) {
-
-          alert(
-            "自分で決める性格を入力してください！"
-          );
-
-          return;
-        }
-
-      }
+  }
 
 
-      try {
+  if (
+    !checkPersonality()
+  ) {
 
-        stream =
-          await navigator
-            .mediaDevices
-            .getUserMedia({
-              audio: true
-            });
+    return;
 
-
-        statusText.textContent =
-          "通話中";
-
-        seconds = 0;
-
-        timer.textContent =
-          "00:00";
+  }
 
 
-        timerInterval =
-          setInterval(() => {
-
-            seconds++;
-
-            const min =
-              String(
-                Math.floor(
-                  seconds / 60
-                )
-              ).padStart(2, "0");
-
-            const sec =
-              String(
-                seconds % 60
-              ).padStart(2, "0");
-
-            timer.textContent =
-              min + ":" + sec;
-
-          }, 1000);
+  try {
 
 
-        alert(
-          "通話を開始しました！"
-        );
+    stream =
+    await navigator
+    .mediaDevices
+    .getUserMedia({
 
-      }
+      audio: true
 
-      catch (error) {
+    });
 
-        console.error(error);
 
-        statusText.textContent =
-          "マイクを使用できません";
+    statusText.textContent =
+    "通話中";
 
-        alert(
-          "マイクの使用を許可してください。"
-        );
 
-      }
+    startButton.textContent =
+    "📞 通話中";
 
-    }
-  );
+
+    startButton.classList.add(
+      "calling"
+    );
+
+
+    seconds = 0;
+
+
+    timer.textContent =
+    "00:00";
+
+
+    timerInterval =
+    setInterval(() => {
+
+
+      seconds++;
+
+
+      const min =
+      String(
+        Math.floor(
+          seconds / 60
+        )
+      ).padStart(
+        2,
+        "0"
+      );
+
+
+      const sec =
+      String(
+        seconds % 60
+      ).padStart(
+        2,
+        "0"
+      );
+
+
+      timer.textContent =
+      min + ":" + sec;
+
+
+    }, 1000);
+
+
+    /*
+      現在は疑似通話です。
+
+      次の段階で、
+      音声認識 → AI → 音声合成
+      をここへ接続します。
+    */
+
+
+  }
+
+  catch(error) {
+
+
+    console.error(error);
+
+
+    statusText.textContent =
+    "マイクを使用できません";
+
+
+    alert(
+      "マイクの使用を許可してください。"
+    );
+
+
+  }
+
+});
 
 
 /* =========================
    ミュート
 ========================= */
 
-document
-  .getElementById("micButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      if (!stream) return;
-
-      const tracks =
-        stream.getAudioTracks();
-
-      tracks.forEach(track => {
-
-        track.enabled =
-          !track.enabled;
-
-      });
+micButton.addEventListener(
+"click",
+() => {
 
 
-      if (tracks[0].enabled) {
+  if (
+    !stream
+  ) {
 
-        document
-          .getElementById("micButton")
-          .textContent = "🎙️";
+    return;
 
-      } else {
+  }
 
-        document
-          .getElementById("micButton")
-          .textContent = "🔇";
 
-      }
+  const tracks =
+  stream.getAudioTracks();
 
-    }
-  );
+
+  tracks.forEach(track => {
+
+
+    track.enabled =
+    !track.enabled;
+
+
+  });
+
+
+  if (
+    tracks[0].enabled
+  ) {
+
+
+    micButton.textContent =
+    "🎙️";
+
+
+  }
+
+  else {
+
+
+    micButton.textContent =
+    "🔇";
+
+
+  }
+
+});
 
 
 /* =========================
@@ -573,50 +1146,79 @@ document
 ========================= */
 
 document
-  .getElementById("endButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      if (stream) {
-
-        stream
-          .getTracks()
-          .forEach(track => {
-            track.stop();
-          });
-
-        stream = null;
-
-      }
+.getElementById("endButton")
+.addEventListener(
+"click",
+() => {
 
 
-      clearInterval(
-        timerInterval
-      );
+  if (
+    stream
+  ) {
 
 
-      statusText.textContent =
-        "通話終了";
+    stream
+    .getTracks()
+    .forEach(track => {
 
-      timer.textContent =
-        "00:00";
+      track.stop();
 
-      document
-        .getElementById("micButton")
-        .textContent = "🎙️";
+    });
 
-    }
+
+    stream = null;
+
+  }
+
+
+  clearInterval(
+    timerInterval
   );
+
+
+  timerInterval =
+  null;
+
+
+  statusText.textContent =
+  "通話終了";
+
+
+  timer.textContent =
+  "00:00";
+
+
+  startButton.textContent =
+  "📞 通話開始";
+
+
+  startButton.classList.remove(
+    "calling"
+  );
+
+
+  micButton.textContent =
+  "🎙️";
+
+
+});
+
 
 </script>
 
 </body>
+
 </html>`, {
+
       headers: {
+
         "content-type":
-          "text/html; charset=UTF-8"
+        "text/html; charset=UTF-8"
+
       }
+
     });
+
   }
+
 };
