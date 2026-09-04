@@ -1,0 +1,622 @@
+export default {
+  async fetch(request) {
+    return new Response(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>UTAU AI Call</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #111;
+  color: white;
+  font-family: sans-serif;
+}
+
+#app {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  margin: auto;
+  background: #202124;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 25px 20px;
+}
+
+h1 {
+  margin: 5px 0 20px;
+  font-size: 24px;
+}
+
+/* キャラクター画像 */
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #444;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 65px;
+  margin-top: 5px;
+}
+
+/* キャラクター名 */
+
+.name {
+  font-size: 22px;
+  margin-top: 15px;
+}
+
+/* 通話状態 */
+
+.status {
+  margin-top: 6px;
+  color: #aaa;
+}
+
+/* タイマー */
+
+#timer {
+  margin-top: 8px;
+  font-size: 18px;
+}
+
+/* 性格選択 */
+
+.personalityBox {
+  width: 100%;
+  margin-top: 25px;
+}
+
+.personalityTitle {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.personalityButton {
+  width: 100%;
+  height: 48px;
+  margin-bottom: 8px;
+  border: 1px solid #555;
+  border-radius: 10px;
+  background: #303134;
+  color: white;
+  font-size: 16px;
+}
+
+.personalityButton.selected {
+  border: 2px solid white;
+  background: #454545;
+}
+
+/* 自由入力 */
+
+#customPersonality {
+  display: none;
+  width: 100%;
+  min-height: 80px;
+  margin-top: 5px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #666;
+  background: #181818;
+  color: white;
+  font-size: 15px;
+  resize: vertical;
+}
+
+/* ZIP */
+
+.upload {
+  width: 100%;
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px dashed #777;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.upload input {
+  width: 100%;
+  margin-top: 10px;
+}
+
+#fileName {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #aaa;
+  word-break: break-all;
+}
+
+/* 通話開始 */
+
+#startButton {
+  width: 220px;
+  height: 55px;
+  border: none;
+  border-radius: 30px;
+  margin-top: 20px;
+  font-size: 18px;
+  background: #333;
+  color: white;
+}
+
+#startButton:active {
+  transform: scale(0.97);
+}
+
+/* 通話ボタン */
+
+.buttons {
+  margin-top: 25px;
+  padding-bottom: 20px;
+  display: flex;
+  gap: 35px;
+}
+
+.callButton {
+  width: 65px;
+  height: 65px;
+  border: none;
+  border-radius: 50%;
+  font-size: 27px;
+}
+
+#micButton {
+  background: #444;
+  color: white;
+}
+
+#endButton {
+  background: #d93025;
+  color: white;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="app">
+
+  <h1>📞 UTAU AI Call</h1>
+
+  <div class="avatar" id="avatar">
+    🎤
+  </div>
+
+  <div class="name" id="characterName">
+    AIキャラ
+  </div>
+
+  <div class="status" id="status">
+    通話準備中
+  </div>
+
+  <div id="timer">
+    00:00
+  </div>
+
+
+  <!-- 性格選択 -->
+
+  <div class="personalityBox">
+
+    <div class="personalityTitle">
+      🧠 性格を選択してください
+    </div>
+
+    <button
+      class="personalityButton"
+      data-type="tanaka">
+      👴 田中
+    </button>
+
+    <button
+      class="personalityButton"
+      data-type="jagajaga">
+      🥔 じゃがじゃが
+    </button>
+
+    <button
+      class="personalityButton"
+      data-type="custom">
+      ✏️ 自分で決める
+    </button>
+
+    <textarea
+      id="customPersonality"
+      placeholder="このAIの性格を自由に書いてください。
+例：明るく元気で、少し天然な性格。"></textarea>
+
+  </div>
+
+
+  <!-- UTAU音源 -->
+
+  <div class="upload">
+
+    📦 UTAU音源ZIP
+
+    <br>
+
+    <input
+      type="file"
+      id="voiceFile"
+      accept=".zip">
+
+    <div id="fileName">
+      まだ選択されていません
+    </div>
+
+  </div>
+
+
+  <!-- 通話開始 -->
+
+  <button id="startButton">
+    📞 通話開始
+  </button>
+
+
+  <!-- 通話操作 -->
+
+  <div class="buttons">
+
+    <button
+      class="callButton"
+      id="micButton">
+      🎙️
+    </button>
+
+    <button
+      class="callButton"
+      id="endButton">
+      🔴
+    </button>
+
+  </div>
+
+</div>
+
+
+<script>
+
+let stream = null;
+let timerInterval = null;
+let seconds = 0;
+
+let selectedPersonality = null;
+
+const statusText =
+  document.getElementById("status");
+
+const timer =
+  document.getElementById("timer");
+
+const voiceFile =
+  document.getElementById("voiceFile");
+
+const fileName =
+  document.getElementById("fileName");
+
+const customPersonality =
+  document.getElementById("customPersonality");
+
+const characterName =
+  document.getElementById("characterName");
+
+const avatar =
+  document.getElementById("avatar");
+
+
+/* =========================
+   性格選択
+========================= */
+
+document
+  .querySelectorAll(".personalityButton")
+  .forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      document
+        .querySelectorAll(".personalityButton")
+        .forEach(b => {
+          b.classList.remove("selected");
+        });
+
+      button.classList.add("selected");
+
+      selectedPersonality =
+        button.dataset.type;
+
+      if (selectedPersonality === "custom") {
+
+        customPersonality.style.display =
+          "block";
+
+      } else {
+
+        customPersonality.style.display =
+          "none";
+
+      }
+
+
+      /* キャラクター表示 */
+
+      if (selectedPersonality === "tanaka") {
+
+        characterName.textContent =
+          "田中";
+
+        avatar.textContent =
+          "👴";
+
+      }
+
+      else if (
+        selectedPersonality === "jagajaga"
+      ) {
+
+        characterName.textContent =
+          "じゃがじゃが";
+
+        avatar.textContent =
+          "🥔";
+
+      }
+
+      else {
+
+        characterName.textContent =
+          "オリジナルAI";
+
+        avatar.textContent =
+          "🎤";
+
+      }
+
+    });
+
+  });
+
+
+/* =========================
+   UTAU ZIP選択
+========================= */
+
+voiceFile.addEventListener(
+  "change",
+  () => {
+
+    if (voiceFile.files.length > 0) {
+
+      const file =
+        voiceFile.files[0];
+
+      fileName.textContent =
+        "選択中: " + file.name;
+
+    }
+
+  }
+);
+
+
+/* =========================
+   通話開始
+========================= */
+
+document
+  .getElementById("startButton")
+  .addEventListener(
+    "click",
+    async () => {
+
+      /* 性格チェック */
+
+      if (!selectedPersonality) {
+
+        alert(
+          "まず性格を選択してください！"
+        );
+
+        return;
+      }
+
+
+      /* 自由入力チェック */
+
+      if (
+        selectedPersonality === "custom"
+      ) {
+
+        const text =
+          customPersonality.value.trim();
+
+        if (!text) {
+
+          alert(
+            "自分で決める性格を入力してください！"
+          );
+
+          return;
+        }
+
+      }
+
+
+      try {
+
+        stream =
+          await navigator
+            .mediaDevices
+            .getUserMedia({
+              audio: true
+            });
+
+
+        statusText.textContent =
+          "通話中";
+
+        seconds = 0;
+
+        timer.textContent =
+          "00:00";
+
+
+        timerInterval =
+          setInterval(() => {
+
+            seconds++;
+
+            const min =
+              String(
+                Math.floor(
+                  seconds / 60
+                )
+              ).padStart(2, "0");
+
+            const sec =
+              String(
+                seconds % 60
+              ).padStart(2, "0");
+
+            timer.textContent =
+              min + ":" + sec;
+
+          }, 1000);
+
+
+        alert(
+          "通話を開始しました！"
+        );
+
+      }
+
+      catch (error) {
+
+        console.error(error);
+
+        statusText.textContent =
+          "マイクを使用できません";
+
+        alert(
+          "マイクの使用を許可してください。"
+        );
+
+      }
+
+    }
+  );
+
+
+/* =========================
+   ミュート
+========================= */
+
+document
+  .getElementById("micButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      if (!stream) return;
+
+      const tracks =
+        stream.getAudioTracks();
+
+      tracks.forEach(track => {
+
+        track.enabled =
+          !track.enabled;
+
+      });
+
+
+      if (tracks[0].enabled) {
+
+        document
+          .getElementById("micButton")
+          .textContent = "🎙️";
+
+      } else {
+
+        document
+          .getElementById("micButton")
+          .textContent = "🔇";
+
+      }
+
+    }
+  );
+
+
+/* =========================
+   通話終了
+========================= */
+
+document
+  .getElementById("endButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      if (stream) {
+
+        stream
+          .getTracks()
+          .forEach(track => {
+            track.stop();
+          });
+
+        stream = null;
+
+      }
+
+
+      clearInterval(
+        timerInterval
+      );
+
+
+      statusText.textContent =
+        "通話終了";
+
+      timer.textContent =
+        "00:00";
+
+      document
+        .getElementById("micButton")
+        .textContent = "🎙️";
+
+    }
+  );
+
+</script>
+
+</body>
+</html>`, {
+      headers: {
+        "content-type":
+          "text/html; charset=UTF-8"
+      }
+    });
+  }
+};
